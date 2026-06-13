@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <title>Add an icon to the map</title>
+        <meta
+            property="og:description"
+            content="Add an icon to the map from an external URL and use it in a symbol layer."
+        />
+        <meta property="og:created" content="2025-06-25" />
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="stylesheet" href="../../../dist/maplibre-gl.css" />
+
+        <style>
+            body {
+                margin: 0;
+                padding: 0;
+            }
+            html,
+            body,
+            #map {
+                height: 100%;
+            }
+            #dropzone {
+                position: absolute;
+                top: 10px;
+                left: 10px;
+                z-index: 1;
+                width: 220px;
+                padding: 16px;
+                font-family: "Helvetica Neue", Arial, Helvetica, sans-serif;
+                font-size: 13px;
+                text-align: center;
+                color: #fff;
+                background-color: rgba(0, 0, 0, 0.6);
+                border: 2px dashed rgba(255, 255, 255, 0.6);
+                border-radius: 4px;
+                pointer-events: none;
+            }
+            #dropzone.drag-over {
+                border-color: #33cc99;
+                background-color: rgba(51, 204, 153, 0.3);
+            }
+        </style>
+    </head>
+    <body>
+        <div id="map"></div>
+        <div id="dropzone">
+            Drop a PNG into the map to bake it as an SDF icon
+        </div>
+        <script type="module">
+            import * as maplibregl from "../../../dist/maplibre-gl-dev.mjs";
+            import { SdfImageBaker } from "./SdfImageBaker.js";
+
+            const generatedImageFileNames = [
+                // "cat-sdf.png",
+                "emoji_u1f400-sdf.png",
+                "emoji_u1f401-sdf.png",
+                "emoji_u1f402-sdf.png",
+                "emoji_u1f403-sdf.png",
+                "emoji_u1f404-sdf.png",
+                "emoji_u1f405-sdf.png",
+                "emoji_u1f406-sdf.png",
+                "emoji_u1f407-sdf.png",
+                "emoji_u1f408-sdf.png",
+                "emoji_u1f408_200d_2b1b-sdf.png",
+                "emoji_u1f409-sdf.png",
+                "emoji_u1f410-sdf.png",
+                "emoji_u1f411-sdf.png",
+                "emoji_u1f412-sdf.png",
+                "emoji_u1f413-sdf.png",
+                "emoji_u1f414-sdf.png",
+                "emoji_u1f415-sdf.png",
+                "emoji_u1f415_200d_1f9ba-sdf.png",
+                "emoji_u1f416-sdf.png",
+                "emoji_u1f417-sdf.png",
+                "emoji_u1f418-sdf.png",
+                "emoji_u1f419-sdf.png",
+                "emoji_u1f420-sdf.png",
+                "emoji_u1f421-sdf.png",
+                "emoji_u1f422-sdf.png",
+                "emoji_u1f423-sdf.png",
+                "emoji_u1f424-sdf.png",
+                "emoji_u1f425-sdf.png",
+                "emoji_u1f426-sdf.png",
+                "emoji_u1f426_200d_1f525-sdf.png",
+                "emoji_u1f426_200d_2b1b-sdf.png",
+                "emoji_u1f427-sdf.png",
+                "emoji_u1f428-sdf.png",
+                "emoji_u1f429-sdf.png",
+                "emoji_u1f430-sdf.png",
+                "emoji_u1f431-sdf.png",
+                "emoji_u1f432-sdf.png",
+                "emoji_u1f433-sdf.png",
+                "emoji_u1f434-sdf.png",
+                "emoji_u1f435-sdf.png",
+                "emoji_u1f436-sdf.png",
+                "emoji_u1f437-sdf.png",
+                "emoji_u1f438-sdf.png",
+                "emoji_u1f439-sdf.png",
+            ];
+
+            async function readPngAsImageData(file) {
+                const dataUrl = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+                const img = await new Promise((resolve, reject) => {
+                    const image = new Image();
+                    image.onload = () => resolve(image);
+                    image.onerror = reject;
+                    image.src = dataUrl;
+                });
+                const canvas = document.createElement("canvas");
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0);
+                return ctx.getImageData(0, 0, canvas.width, canvas.height);
+            }
+
+            const map = new maplibregl.Map({
+                container: "map",
+                style: "https://demotiles.maplibre.org/style.json",
+                zoom: 5,
+            });
+            window.map = map;
+
+            map.on("load", async () => {
+                const iconIds = generatedImageFileNames.map((fileName) =>
+                    fileName.replace(/-sdf\.png$/, ""),
+                );
+
+                await Promise.all(
+                    generatedImageFileNames.map(async (fileName, i) => {
+                        const image = await map.loadImage(
+                            `/test/examples/sdf-rgb/icons/${fileName}`,
+                        );
+                        map.addImage(iconIds[i], image.data, { sdf: true });
+                    }),
+                );
+
+                // Lay out the icons on a square grid centered on [0, 0].
+                const cols = Math.ceil(Math.sqrt(iconIds.length));
+                const spacing = 2; // degrees between points
+                const offset = ((cols - 1) * spacing) / 2;
+
+                const features = iconIds.map((iconId, i) => {
+                    const col = i % cols;
+                    const row = Math.floor(i / cols);
+                    return {
+                        type: "Feature",
+                        id: i + 1,
+                        properties: { iconId },
+                        geometry: {
+                            type: "Point",
+                            coordinates: [
+                                col * spacing - offset,
+                                offset - row * spacing,
+                            ],
+                        },
+                    };
+                });
+
+                map.addSource("point", {
+                    type: "geojson",
+                    data: {
+                        type: "FeatureCollection",
+                        features,
+                    },
+                });
+
+                const HALO_WIDTH = 2;
+                const haloWidthExpression = (width) => [
+                    "case",
+                    ["boolean", ["feature-state", "hover"], false],
+                    width,
+                    0,
+                ];
+
+                map.addLayer({
+                    id: "points",
+                    type: "symbol",
+                    source: "point",
+                    layout: {
+                        "icon-image": ["get", "iconId"],
+                        "icon-size": 0.5,
+                        "icon-allow-overlap": true,
+                    },
+                    paint: {
+                        "icon-halo-width": haloWidthExpression(HALO_WIDTH),
+                        "icon-halo-color": "#333333",
+                        "icon-halo-blur": 0,
+                    },
+                });
+
+                // A row showing the same icon with halo-width ramping from 0 to 5
+                // and a different halo-color per step.
+                const haloDemoIconId = iconIds[0];
+                const haloDemoColors = [
+                    "#ff0000",
+                    "#ff9900",
+                    "#ffff00",
+                    "#33cc99",
+                    "#3399ff",
+                ];
+                const haloDemoOffset =
+                    ((haloDemoColors.length - 1) * spacing) / 2;
+                const haloDemoFeatures = haloDemoColors.map((color, i) => ({
+                    type: "Feature",
+                    id: 1000 + i,
+                    properties: {
+                        iconId: haloDemoIconId,
+                        haloWidth: i / 2,
+                        haloColor: color,
+                    },
+                    geometry: {
+                        type: "Point",
+                        coordinates: [
+                            i * spacing - haloDemoOffset,
+                            -offset - spacing,
+                        ],
+                    },
+                }));
+
+                map.addSource("halo-demo-point", {
+                    type: "geojson",
+                    data: {
+                        type: "FeatureCollection",
+                        features: haloDemoFeatures,
+                    },
+                });
+
+                map.addLayer({
+                    id: "halo-demo-points",
+                    type: "symbol",
+                    source: "halo-demo-point",
+                    layout: {
+                        "icon-image": ["get", "iconId"],
+                        "icon-size": 0.5,
+                        "icon-allow-overlap": true,
+                    },
+                    paint: {
+                        "icon-halo-width": ["get", "haloWidth"],
+                        "icon-halo-color": ["get", "haloColor"],
+                        "icon-halo-blur": 0,
+                    },
+                });
+
+                let hoveredId = null;
+                map.on("mousemove", "points", (e) => {
+                    map.getCanvas().style.cursor = "pointer";
+                    const feature = e.features[0];
+                    if (feature.id === hoveredId) return;
+                    if (hoveredId !== null) {
+                        map.setFeatureState(
+                            { source: "point", id: hoveredId },
+                            { hover: false },
+                        );
+                    }
+                    hoveredId = feature.id;
+                    map.setFeatureState(
+                        { source: "point", id: hoveredId },
+                        { hover: true },
+                    );
+                });
+                map.on("mouseleave", "points", () => {
+                    map.getCanvas().style.cursor = "";
+                    if (hoveredId !== null) {
+                        map.setFeatureState(
+                            { source: "point", id: hoveredId },
+                            { hover: false },
+                        );
+                    }
+                    hoveredId = null;
+                });
+
+                const mapContainer = document.getElementById("map");
+                const dropzone = document.getElementById("dropzone");
+                let uploadedCount = 0;
+
+                mapContainer.addEventListener("dragover", (e) => {
+                    e.preventDefault();
+                    dropzone.classList.add("drag-over");
+                });
+                mapContainer.addEventListener("dragleave", () => {
+                    dropzone.classList.remove("drag-over");
+                });
+                mapContainer.addEventListener("drop", async (e) => {
+                    e.preventDefault();
+                    dropzone.classList.remove("drag-over");
+
+                    const file = e.dataTransfer.files[0];
+                    if (!file || !file.type.startsWith("image/png")) return;
+
+                    const imageData = await readPngAsImageData(file);
+                    const baker = new SdfImageBaker({
+                        withOriginalRGBChannel: true,
+                        premultiplyAlpha: true,
+                    });
+                    const sdf = baker.drawImage(imageData);
+
+                    const iconId = `uploaded-${uploadedCount++}`;
+                    map.addImage(iconId, sdf, { sdf: true });
+
+                    const rect = mapContainer.getBoundingClientRect();
+                    const lngLat = map.unproject([
+                        e.clientX - rect.left,
+                        e.clientY - rect.top,
+                    ]);
+
+                    map.getSource("point").updateData({
+                        add: [
+                            {
+                                type: "Feature",
+                                id: 10000 + uploadedCount,
+                                properties: { iconId },
+                                geometry: {
+                                    type: "Point",
+                                    coordinates: lngLat.toArray(),
+                                },
+                            },
+                        ],
+                    });
+                });
+            });
+        </script>
+    </body>
+</html>

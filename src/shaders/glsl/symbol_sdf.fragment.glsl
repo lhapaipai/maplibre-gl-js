@@ -33,14 +33,17 @@ void main() {
     highp float gamma = EDGE_GAMMA / (fontScale * u_gamma_scale);
     lowp float inner_edge = (256.0 - 64.0) / 256.0;
 
-    lowp float dist = texture(u_texture, tex).a;
+    lowp vec4 text = texture(u_texture, tex);
+    lowp float dist = text.a;
 
     lowp vec4 color_alpha_out_text, color_alpha_out_halo;
 
     if (u_is_plain){
         highp float gamma_scaled = gamma * gamma_scale;
         highp float alpha = smoothstep(inner_edge - gamma_scaled, inner_edge + gamma_scaled, dist);
-        color_alpha_out_text = total_opacity * alpha * fill_color;
+        // color_alpha_out_text = total_opacity * alpha * fill_color;
+        color_alpha_out_text = total_opacity * alpha * vec4(text.rgb, 1.);
+
     }
     if (u_is_halo) {
         float gamma_halo = (halo_blur * 1.19 / SDF_PX + EDGE_GAMMA) / (fontScale * u_gamma_scale);
@@ -51,7 +54,7 @@ void main() {
         // When drawing halos, we want the inside of the halo to be transparent as well
         // in case the text fill is transparent.
         highp float halo_edge = (6.0 - halo_width / fontScale) / SDF_PX;
-        alpha_halo =  min(smoothstep(halo_edge - gamma_scaled_halo, halo_edge + gamma_scaled_halo, dist), 1.0 - alpha_halo);
+        alpha_halo = halo_width > 0.0 ? min(smoothstep(halo_edge - gamma_scaled_halo, halo_edge + gamma_scaled_halo, dist), 1.0 - alpha_halo) : 0.0;
 
         color_alpha_out_halo = total_opacity * alpha_halo * halo_color;
     }
