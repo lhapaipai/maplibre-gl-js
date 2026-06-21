@@ -1,0 +1,4 @@
+maplibre-sdf-halo.pentatrion.com {
+	root * /home/lhapaipai/maplibre-sdf-halo.pentatrion.com
+	file_server
+}
