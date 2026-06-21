@@ -10,6 +10,7 @@
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="stylesheet" href="../../../dist/maplibre-gl.css" />
+        <!-- <link rel="stylesheet" href="./lib/maplibre-gl.css" /> -->
 
         <style>
             body {
@@ -50,6 +51,7 @@
         </div>
         <script type="module">
             import * as maplibregl from "../../../dist/maplibre-gl-dev.mjs";
+            // import * as maplibregl from "./lib/maplibre-gl-dev.mjs";
             import { SdfImageBaker } from "./SdfImageBaker.js";
 
             const generatedImageFileNames = [
@@ -100,6 +102,11 @@
                 "emoji_u1f439-sdf.png",
             ];
 
+            const haloChangingImageFileNames = [
+                "rotate-sdf.png",
+                "scale-sdf.png",
+            ];
+
             async function readPngAsImageData(file) {
                 const dataUrl = await new Promise((resolve, reject) => {
                     const reader = new FileReader();
@@ -136,9 +143,24 @@
                 await Promise.all(
                     generatedImageFileNames.map(async (fileName, i) => {
                         const image = await map.loadImage(
-                            `/test/examples/sdf-rgb/icons/${fileName}`,
+                            `./icons/${fileName}`,
                         );
                         map.addImage(iconIds[i], image.data, { sdf: true });
+                    }),
+                );
+
+                const haloChangingIconIds = haloChangingImageFileNames.map(
+                    (fileName) => fileName.replace(/-sdf\.png$/, ""),
+                );
+
+                await Promise.all(
+                    haloChangingImageFileNames.map(async (fileName, i) => {
+                        const image = await map.loadImage(
+                            `./icons/${fileName}`,
+                        );
+                        map.addImage(haloChangingIconIds[i], image.data, {
+                            sdf: true,
+                        });
                     }),
                 );
 
@@ -249,6 +271,53 @@
                     },
                 });
 
+                // A row showing icons with a white halo that turns black on hover.
+                const haloChangingOffset =
+                    ((haloChangingIconIds.length - 1) * spacing) / 2;
+                const haloChangingFeatures = haloChangingIconIds.map(
+                    (iconId, i) => ({
+                        type: "Feature",
+                        id: 2000 + i,
+                        properties: { iconId },
+                        geometry: {
+                            type: "Point",
+                            coordinates: [
+                                i * spacing - haloChangingOffset,
+                                -offset - spacing * 2,
+                            ],
+                        },
+                    }),
+                );
+
+                map.addSource("halo-changing-point", {
+                    type: "geojson",
+                    data: {
+                        type: "FeatureCollection",
+                        features: haloChangingFeatures,
+                    },
+                });
+
+                map.addLayer({
+                    id: "halo-changing-points",
+                    type: "symbol",
+                    source: "halo-changing-point",
+                    layout: {
+                        "icon-image": ["get", "iconId"],
+                        "icon-size": 0.5,
+                        "icon-allow-overlap": true,
+                    },
+                    paint: {
+                        "icon-halo-width": 2,
+                        "icon-halo-color": [
+                            "case",
+                            ["boolean", ["feature-state", "hover"], false],
+                            "#000000",
+                            "#ffffff",
+                        ],
+                        "icon-halo-blur": 0,
+                    },
+                });
+
                 let hoveredId = null;
                 map.on("mousemove", "points", (e) => {
                     map.getCanvas().style.cursor = "pointer";
@@ -275,6 +344,43 @@
                         );
                     }
                     hoveredId = null;
+                });
+
+                let hoveredChangingId = null;
+                map.on("mousemove", "halo-changing-points", (e) => {
+                    map.getCanvas().style.cursor = "pointer";
+                    const feature = e.features[0];
+                    if (feature.id === hoveredChangingId) return;
+                    if (hoveredChangingId !== null) {
+                        map.setFeatureState(
+                            {
+                                source: "halo-changing-point",
+                                id: hoveredChangingId,
+                            },
+                            { hover: false },
+                        );
+                    }
+                    hoveredChangingId = feature.id;
+                    map.setFeatureState(
+                        {
+                            source: "halo-changing-point",
+                            id: hoveredChangingId,
+                        },
+                        { hover: true },
+                    );
+                });
+                map.on("mouseleave", "halo-changing-points", () => {
+                    map.getCanvas().style.cursor = "";
+                    if (hoveredChangingId !== null) {
+                        map.setFeatureState(
+                            {
+                                source: "halo-changing-point",
+                                id: hoveredChangingId,
+                            },
+                            { hover: false },
+                        );
+                    }
+                    hoveredChangingId = null;
                 });
 
                 const mapContainer = document.getElementById("map");
